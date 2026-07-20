@@ -273,11 +273,11 @@ export const midtransNotification = async (req, res) => {
         let newStatus = pesanan.status;
         if (transactionStatus === 'capture') {
             if (fraudStatus === 'accept') {
-                newStatus = 'PROCESSING';
+                newStatus = 'SHIPPED';
             }
         }
         else if (transactionStatus === 'settlement') {
-            newStatus = 'PROCESSING';
+            newStatus = 'SHIPPED';
         }
         else if (transactionStatus === 'cancel' || transactionStatus === 'deny' || transactionStatus === 'expire') {
             newStatus = 'CANCELLED';

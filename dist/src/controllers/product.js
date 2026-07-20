@@ -2,9 +2,18 @@ import { PrismaClient } from "@prisma/client";
 import fs from 'fs';
 import path from 'path';
 const prisma = new PrismaClient();
+// Simple in-memory cache for products
+let cachedProducts = null;
+let cacheTimestamp = 0;
+const CACHE_TTL = 30000; // 30 seconds
 // GET all products
 export const getProducts = async (req, res) => {
     try {
+        const now = Date.now();
+        if (cachedProducts && (now - cacheTimestamp < CACHE_TTL)) {
+            res.status(200).json(cachedProducts);
+            return;
+        }
         const products = await prisma.produk.findMany({
             include: {
                 varian: true,
@@ -43,6 +52,9 @@ export const getProducts = async (req, res) => {
                 terjual,
             };
         });
+        // Update cache
+        cachedProducts = mappedProducts;
+        cacheTimestamp = now;
         res.status(200).json(mappedProducts);
     }
     catch (error) {
@@ -121,6 +133,8 @@ export const createProduct = async (req, res) => {
                 varian: true,
             }
         });
+        // Invalidate cache
+        cachedProducts = null;
         res.status(201).json({
             message: 'Produk berhasil ditambahkan',
             product: newProduct
@@ -212,6 +226,8 @@ export const updateProduct = async (req, res) => {
                 });
             }
         }
+        // Invalidate cache
+        cachedProducts = null;
         res.status(200).json({
             message: 'Produk berhasil diupdate',
             product: updatedProduct
@@ -240,6 +256,8 @@ export const deleteProduct = async (req, res) => {
         await prisma.produk.delete({
             where: { id }
         });
+        // Invalidate cache
+        cachedProducts = null;
         res.status(200).json({ message: 'Produk berhasil dihapus' });
     }
     catch (error) {

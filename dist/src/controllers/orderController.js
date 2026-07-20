@@ -66,7 +66,9 @@ export const getAllOrders = async (req, res) => {
                 gambar: detail.produk.gambar,
                 harga: detail.harga,
                 jumlah: detail.jumlah,
-                subtotal: detail.subtotal
+                subtotal: detail.subtotal,
+                warna: detail.warna,
+                ukuran: detail.ukuran
             }))
         }));
         res.status(200).json({
@@ -143,7 +145,9 @@ export const getUserOrders = async (req, res) => {
                 gambar: detail.produk.gambar,
                 harga: detail.harga,
                 jumlah: detail.jumlah,
-                subtotal: detail.subtotal
+                subtotal: detail.subtotal,
+                warna: detail.warna,
+                ukuran: detail.ukuran
             }))
         }));
         // Sync PENDING orders with Midtrans (useful if webhook didn't hit)
@@ -246,7 +250,9 @@ export const getOrderDetail = async (req, res) => {
                 gambar: detail.produk.gambar,
                 harga: detail.harga,
                 jumlah: detail.jumlah,
-                subtotal: detail.subtotal
+                subtotal: detail.subtotal,
+                warna: detail.warna,
+                ukuran: detail.ukuran
             }))
         };
         if (formattedOrder.status === 'PENDING' && formattedOrder.metode_pembayaran === 'midtrans') {
@@ -459,6 +465,72 @@ export const getDashboardSummary = async (req, res) => {
         console.error('Error fetching dashboard summary:', error);
         res.status(500).json({
             message: 'Gagal mengambil ringkasan dashboard',
+            error: error.message || String(error)
+        });
+    }
+};
+// Cancel order (User only, for PENDING orders)
+export const cancelOrder = async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { orderId } = req.params;
+        if (!userId) {
+            res.status(401).json({ message: 'Pengguna tidak terautentikasi' });
+            return;
+        }
+        const order = await prisma.pesanan.findFirst({
+            where: { id: Number(orderId), user_id: userId },
+            include: {
+                detailPesanan: true
+            }
+        });
+        if (!order) {
+            res.status(404).json({ message: 'Pesanan tidak ditemukan' });
+            return;
+        }
+        if (order.status !== 'PENDING') {
+            res.status(400).json({ message: 'Hanya pesanan dengan status Menunggu Pembayaran yang dapat dibatalkan' });
+            return;
+        }
+        // Update status to CANCELLED
+        const updatedOrder = await prisma.pesanan.update({
+            where: { id: order.id },
+            data: { status: 'CANCELLED' }
+        });
+        // Kembalikan stok varian produk
+        for (const item of order.detailPesanan) {
+            if (item.warna && item.ukuran) {
+                await prisma.produkVarian.updateMany({
+                    where: { produk_id: item.produk_id, warna: item.warna, ukuran: item.ukuran },
+                    data: { stok: { increment: item.jumlah } }
+                });
+            }
+            else {
+                const v = await prisma.produkVarian.findFirst({
+                    where: { produk_id: item.produk_id }
+                });
+                if (v) {
+                    await prisma.produkVarian.update({
+                        where: { id: v.id },
+                        data: { stok: { increment: item.jumlah } }
+                    });
+                }
+            }
+        }
+        if (order.metode_pembayaran === 'midtrans' && order.kode_pesanan) {
+            try {
+                await snap.transaction.cancel(order.kode_pesanan);
+            }
+            catch (err) {
+                console.error(`Failed to cancel midtrans transaction for order ${order.kode_pesanan}:`, err.message);
+            }
+        }
+        res.status(200).json({ message: 'Pesanan berhasil dibatalkan', order: updatedOrder });
+    }
+    catch (error) {
+        console.error('Error cancelling order:', error);
+        res.status(500).json({
+            message: 'Gagal membatalkan pesanan',
             error: error.message || String(error)
         });
     }

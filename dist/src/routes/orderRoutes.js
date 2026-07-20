@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getUserOrders, getAllOrders, getOrderDetail, updateOrderStatus, updateOrderStatusByKode, getOrderStats, getDashboardSummary } from '../controllers/orderController.js';
+import { getUserOrders, getAllOrders, getOrderDetail, updateOrderStatus, updateOrderStatusByKode, getOrderStats, getDashboardSummary, cancelOrder } from '../controllers/orderController.js';
 import { authMiddleware } from '../middleware/auth.js';
 const router = Router();
 // All routes require authentication
@@ -18,5 +18,7 @@ router.get('/:orderId', getOrderDetail);
 router.put('/update-status', updateOrderStatusByKode);
 // Update order status (admin only)
 router.put('/:orderId/status', updateOrderStatus);
+// Cancel order (user only)
+router.put('/:orderId/cancel', cancelOrder);
 export default router;
 //# sourceMappingURL=orderRoutes.js.map

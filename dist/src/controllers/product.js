@@ -265,4 +265,27 @@ export const deleteProduct = async (req, res) => {
         res.status(500).json({ message: 'Gagal menghapus produk' });
     }
 };
+// GET low stock products (stok <= 5)
+export const getLowStockProducts = async (req, res) => {
+    try {
+        const lowStockVariants = await prisma.produkVarian.findMany({
+            where: {
+                stok: {
+                    lte: 5
+                }
+            },
+            include: {
+                produk: true
+            },
+            orderBy: {
+                stok: 'asc'
+            }
+        });
+        res.status(200).json(lowStockVariants);
+    }
+    catch (error) {
+        console.error('Error fetching low stock products:', error);
+        res.status(500).json({ message: 'Gagal mengambil data stok rendah' });
+    }
+};
 //# sourceMappingURL=product.js.map
